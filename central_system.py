@@ -1,40 +1,55 @@
 import psutil
 import time
+from plyer import notification
 
 class Brain:
-    def __init__(self):
+    def __init__(self, cpu_limit, memory_limit, disk_limit, network_limit):
         self.sensor = SystemSensor()
         self.CPU = self.sensor.check_cpu()
         self.Memory = self.sensor.check_memory()
         self.Disk = self.sensor.check_disk()
         self.Network = self.sensor.check_network()
-    
-    def think(self):
+        self.cpu_limit = cpu_limit
+        self.memory_limit = memory_limit
+        self.disk_limit = disk_limit
+        self.network_limit = network_limit
+        self.active_alerts = {}
+
+    def think(self, cpu, memory, disk, network):
         thresholds = {
-            'CPU': (self.CPU, 80),
-            'Memory': (self.Memory, 80),
-            'Disk': (self.Disk, 80),
-            'Network': (self.Network, 5)
+            'CPU': (cpu, self.cpu_limit),
+            'Memory': (memory, self.memory_limit),
+            'Disk': (disk, self.disk_limit),
+            'Network': (network, self.network_limit)
         }
 
-        alert_triggered = False
+        
 
         for name, (current, limit) in thresholds.items():
             if current > limit:
-                print(f'[ALERT]: {name} usage is too high!')
-                alert_triggered = True
+                current_time = time.time()
+                if not (name in self.active_alerts) or (current_time - self.active_alerts[name]) > 60:
+                    print(f'[ALERT]: {name} usage is too high!')
+                    notification.notify(title = "System Monitor Alert", message = f'[ALERT]: {name} usage is too high!')
+                    self.active_alerts[name] = current_time
+                
+            else:
+                if name in self.active_alerts:
+                    del self.active_alerts[name]
+                
 
-        if not alert_triggered:
+        if not self.active_alerts:
             print('All systems clear')
+            
         
     def run(self):
         while True:
-            self.CPU = self.sensor.check_cpu()
-            self.Memory = self.sensor.check_memory()
-            self.Disk = self.sensor.check_disk()
-            self.Network = (10 * (self.sensor.check_network())) / 1048576
+            cpu = self.sensor.check_cpu()
+            memory = self.sensor.check_memory()
+            disk = self.sensor.check_disk()
+            network = (10 * (self.sensor.check_network())) / 1048576
 
-            self.think()
+            self.think(cpu,memory,disk,network)
             time.sleep(2)
         
 
@@ -55,7 +70,7 @@ class SystemSensor:
         return end_bytes - start_bytes
     
 
-butler = Brain()
+butler = Brain(85,85,85,5)
 butler.run()
 
 
